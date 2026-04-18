@@ -714,7 +714,7 @@ function html(_supabaseUrl: string, _anonKey: string): string {
         return;
       }
       const latestWeek = briefs[0].week_start;
-      const thisWeek = briefs.filter(b => b.week_start === latestWeek);
+      const thisWeek = sortBriefs(briefs.filter(b => b.week_start === latestWeek));
       renderHeroStats(thisWeek);
       renderDrills(thisWeek);
       renderVerticals(thisWeek);
@@ -892,6 +892,15 @@ function html(_supabaseUrl: string, _anonKey: string): string {
     };
     render();
     setInterval(render, 3200);
+  }
+
+  function sortBriefs(briefs) {
+    // "other" always last. Rest ordered by total_reviews desc.
+    return briefs.slice().sort((a, b) => {
+      if (a.vertical === 'other' && b.vertical !== 'other') return 1;
+      if (b.vertical === 'other' && a.vertical !== 'other') return -1;
+      return b.total_reviews - a.total_reviews;
+    });
   }
 
   function escapeHtml(s) {
