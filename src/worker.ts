@@ -204,40 +204,6 @@ function html(_supabaseUrl: string, _anonKey: string): string {
   }
   .section-lede { color: var(--muted); font-size: 16px; max-width: 640px; margin-bottom: 32px; }
 
-  /* MURO DE VOCES (T1.1) — review wall */
-  .muro { border-top: 1px solid var(--border); }
-  .muro-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 14px;
-  }
-  .quote-card {
-    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-    padding: 18px; transition: transform .2s, border-color .2s;
-    display: flex; flex-direction: column; gap: 12px; min-height: 160px;
-  }
-  .quote-card:hover { transform: translateY(-2px); border-color: var(--border-hover); }
-  .quote-card.s1 { border-left: 3px solid var(--danger); }
-  .quote-card.s2 { border-left: 3px solid #ff7a6b; }
-  .quote-card.s3 { border-left: 3px solid var(--warning); }
-  .quote-card.s4 { border-left: 3px solid #a7c957; }
-  .quote-card.s5 { border-left: 3px solid var(--success); }
-  .quote-head {
-    display: flex; align-items: center; justify-content: space-between;
-    font-size: 11px; color: var(--muted);
-  }
-  .quote-vertical {
-    text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; color: var(--accent);
-  }
-  .quote-stars { font-family: 'JetBrains Mono', monospace; letter-spacing: 2px; }
-  .quote-text {
-    font-size: 14px; line-height: 1.5; font-style: italic; color: var(--text);
-    flex: 1;
-  }
-  .quote-source {
-    font-size: 11px; color: var(--muted-2); margin-top: auto;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
   /* FIRE DRILLS */
   .drill-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
   @media (max-width: 900px) { .drill-grid { grid-template-columns: 1fr; } }
@@ -467,8 +433,12 @@ function html(_supabaseUrl: string, _anonKey: string): string {
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
     display: flex; align-items: center; justify-content: center;
     font-size: 72px; font-weight: 800; color: #fff;
-    letter-spacing: -2px; overflow: hidden;
+    letter-spacing: -2px; overflow: hidden; position: relative;
+    border: 3px solid var(--border);
   }
+  .hablemos-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .hablemos-avatar .avatar-initials { display: none; }
+  .hablemos-avatar.fallback .avatar-initials { display: block; }
   .hablemos h2 { font-size: clamp(26px, 4vw, 36px); font-weight: 700; letter-spacing: -0.5px; margin-bottom: 12px; }
   .hablemos p { color: var(--muted); font-size: 16px; margin-bottom: 20px; max-width: 560px; }
   .hablemos-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -516,7 +486,6 @@ function html(_supabaseUrl: string, _anonKey: string): string {
   <div class="container nav-inner">
     <div class="logo"><span class="grad">Voz del Cliente</span> · Rappi MX</div>
     <div class="nav-links">
-      <a href="#muro">Voces</a>
       <a href="#hallazgos">Hallazgos</a>
       <a href="#explorer">Verticales</a>
       <a href="#bot">Bot</a>
@@ -537,16 +506,6 @@ function html(_supabaseUrl: string, _anonKey: string): string {
       <div class="hero-stat"><div class="hero-stat-value">—</div><div class="hero-stat-label">Verticales</div></div>
       <div class="hero-stat"><div class="hero-stat-value">—</div><div class="hero-stat-label">Clusters</div></div>
     </div>
-  </div>
-</section>
-
-<!-- T1.1 Muro de voces -->
-<section id="muro" class="muro">
-  <div class="container">
-    <span class="section-label">Muro de voces</span>
-    <h2 class="section-title">Lo que dicen los clientes, sin filtro</h2>
-    <p class="section-lede">Citas reales de reseñas públicas, clasificadas por vertical y sentiment. El agente no inventa: extrae textual.</p>
-    <div class="muro-grid" id="muro-grid"><div class="loading">Cargando voces…</div></div>
   </div>
 </section>
 
@@ -697,11 +656,14 @@ function html(_supabaseUrl: string, _anonKey: string): string {
 <section id="hablemos" class="hablemos">
   <div class="container">
     <div class="hablemos-wrap">
-      <div class="hablemos-avatar" aria-hidden="true">AF</div>
+      <div class="hablemos-avatar" aria-hidden="true">
+        <img id="avatar-img" src="/avatar.jpg" alt="Alex Friedlander" onerror="this.style.display='none';this.parentElement.classList.add('fallback');">
+        <span class="avatar-initials">AF</span>
+      </div>
       <div>
-        <span class="section-label">Hablemos</span>
-        <h2>Si este tipo de cosas te suena útil en Rappi, me contactas.</h2>
-        <p>Soy Alex Friedlander. Vengo de Alfa/Accenture (4 años rediseñando operaciones en Iberdrola, Avangrid, EDPR) y monté la expansión APAC de una empresa de soluciones de IA. Hoy diseño y despliego sistemas de IA en producción, no los advierto desde el otro lado de la mesa.</p>
+        <span class="section-label">Hablamos</span>
+        <h2>Si te encaja el perfil, escríbeme.</h2>
+        <p>Soy Alex Friedlander. 4 años de consultoría estratégica en Alfa/Accenture rediseñando operaciones en grandes empresas de energía de Europa y EEUU. Un año montando la expansión APAC de una empresa de soluciones de IA desde cero, con pipeline de más de 3M€ con clientes enterprise. Hoy diseño y despliego sistemas de IA en producción — no los defiendo desde un deck, los envío a prod.</p>
         <div class="hablemos-ctas">
           <a href="https://linkedin.com/in/alex-friedlander-a3766197" target="_blank" rel="noopener" class="btn-primary">Escribir por LinkedIn →</a>
           <a href="mailto:alexfriedlanderpascual@gmail.com" class="btn-ghost">Email</a>
@@ -740,8 +702,6 @@ function html(_supabaseUrl: string, _anonKey: string): string {
   };
   const DRILL_RANK = ['rappipay', 'courier', 'app', 'food', 'grocery', 'pharmacy', 'other'];
 
-  let allQuotes = [];
-
   (async () => {
     try {
       const res = await fetch('/api/briefs');
@@ -756,7 +716,6 @@ function html(_supabaseUrl: string, _anonKey: string): string {
       const latestWeek = briefs[0].week_start;
       const thisWeek = briefs.filter(b => b.week_start === latestWeek);
       renderHeroStats(thisWeek);
-      renderMuro(thisWeek);
       renderDrills(thisWeek);
       renderVerticals(thisWeek);
       renderExplorer(thisWeek);
@@ -781,46 +740,6 @@ function html(_supabaseUrl: string, _anonKey: string): string {
     document.getElementById('hero-stats').innerHTML = stats.map(x =>
       '<div class="hero-stat"><div class="hero-stat-value">' + x.v + '</div><div class="hero-stat-label">' + x.k + '</div></div>'
     ).join('');
-  }
-
-  function collectQuotes(briefs) {
-    const quotes = [];
-    briefs.forEach(b => {
-      (b.clusters || []).forEach(c => {
-        if (c.example_quote) {
-          quotes.push({
-            text: c.example_quote,
-            vertical: b.vertical,
-            theme: c.theme,
-            sentiment: 1, // cluster quotes are from negative reviews
-          });
-        }
-      });
-    });
-    return quotes;
-  }
-
-  function renderMuro(briefs) {
-    const quotes = collectQuotes(briefs);
-    allQuotes = quotes;
-    if (quotes.length === 0) {
-      document.getElementById('muro-grid').innerHTML = '<div class="loading">Sin citas aún.</div>';
-      return;
-    }
-    // Shuffle for visual variety
-    const shuffled = quotes.map(q => q).sort(() => Math.random() - 0.5);
-    document.getElementById('muro-grid').innerHTML = shuffled.map(q => {
-      const verticalLabel = VERTICAL_LABELS[q.vertical] || q.vertical;
-      const stars = '★'.repeat(q.sentiment) + '☆'.repeat(5 - q.sentiment);
-      return '<div class="quote-card s' + q.sentiment + '">' +
-        '<div class="quote-head">' +
-          '<span class="quote-vertical">' + verticalLabel + '</span>' +
-          '<span class="quote-stars">' + stars + '</span>' +
-        '</div>' +
-        '<div class="quote-text">"' + escapeHtml(q.text) + '"</div>' +
-        '<div class="quote-source">' + escapeHtml(q.theme.toLowerCase().slice(0, 60)) + '</div>' +
-      '</div>';
-    }).join('');
   }
 
   function renderDrills(briefs) {
