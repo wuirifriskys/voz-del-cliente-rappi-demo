@@ -38,9 +38,10 @@ Cada semana, un segundo agente agrupa las reseñas negativas de cada vertical en
 
 ## Links en vivo
 
-- Dashboard: `https://voz-del-cliente-rappi-demo.<subdomain>.workers.dev`
-- Bot de Telegram: `@<handle>` — probá `/digest`
-- Código: este repo
+- Dashboard: https://voz-del-cliente-rappi-demo.alexfriedlanderpascual.workers.dev
+- API briefs: https://voz-del-cliente-rappi-demo.alexfriedlanderpascual.workers.dev/api/briefs
+- Bot de Telegram: ver /digest — configurar webhook con el token propio
+- Código: este repo (https://github.com/wuirifriskys/voz-del-cliente-rappi-demo)
 
 ## Estructura
 
