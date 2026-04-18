@@ -1,0 +1,39 @@
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+.dev.vars
+*.key
+*.pem
+*.p12
+secrets/
+.wrangler/
+wrangler.toml.local
+
+# Apify / data dumps
+apify_storage/
+storage/
+*.apify.json
+datasets/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build
+dist/
+build/
+.cache/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Logs
+*.log
+logs/

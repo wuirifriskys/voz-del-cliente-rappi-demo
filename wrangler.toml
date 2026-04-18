@@ -1,0 +1,28 @@
+# Cloudflare Worker configuration for the Voz del Cliente dashboard + Telegram webhook.
+#
+# IMPORTANT: This file is committed to a public repo. It must contain only
+# variable NAMES and non-sensitive config. All secret VALUES are set via:
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   wrangler secret put TELEGRAM_BOT_TOKEN
+#
+# Public values (SUPABASE_URL, SUPABASE_ANON_KEY) can live in [vars] because
+# Supabase anon keys are designed to be exposed and are gated by Row-Level
+# Security policies on the database side.
+
+name = "voz-del-cliente-rappi-demo"
+main = "src/worker.ts"
+compatibility_date = "2025-01-01"
+
+[vars]
+# Non-secret public values go here. Alex should replace these locally via
+# `wrangler.toml.local` (gitignored) or by setting them as non-secret vars
+# via the Cloudflare dashboard. The placeholders below are fine to commit.
+SUPABASE_URL = "https://REPLACE_ME.supabase.co"
+SUPABASE_ANON_KEY = "REPLACE_ME_ANON_KEY"
+
+# Secrets are set via `wrangler secret put` — never listed here.
+# Expected secrets:
+#   - ANTHROPIC_API_KEY
+#   - SUPABASE_SERVICE_ROLE_KEY
+#   - TELEGRAM_BOT_TOKEN
