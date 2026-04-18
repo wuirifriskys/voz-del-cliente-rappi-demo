@@ -405,7 +405,7 @@ function html(_supabaseUrl: string, _anonKey: string): string {
       <a href="#verticales">Verticales</a>
       <a href="#bot">Bot</a>
       <a href="#metodologia">Cómo se hizo</a>
-      <a href="https://t.me/Rappi_demo_bot" target="_blank" rel="noopener" class="nav-cta">Probá el bot →</a>
+      <a href="https://t.me/Rappi_demo_bot" target="_blank" rel="noopener" class="nav-cta">Probar el bot →</a>
     </div>
   </div>
 </nav>
@@ -413,8 +413,8 @@ function html(_supabaseUrl: string, _anonKey: string): string {
 <section class="hero">
   <div class="container">
     <span class="hero-tag">Demo AI Builder · Alex Friedlander</span>
-    <h1>Análisis de reseñas de Rappi México<br><span class="grad">en tiempo agente.</span></h1>
-    <p class="hero-sub">Un agente que ingesta reseñas públicas de App Store y Google Play, las clasifica por vertical y causa raíz con Claude, y agrupa patrones semanales. Construido en 4 horas para demostrar qué puede shippear el AI Squad interno de Rappi en una iteración corta.</p>
+    <h1>Reseñas de Rappi México,<br><span class="grad">analizadas por agentes de IA.</span></h1>
+    <p class="hero-sub">Un pipeline que extrae reseñas públicas de App Store y Google Play, las clasifica por vertical y causa raíz con Claude, y agrupa patrones semanales con citas reales. Cuatro horas de desarrollo para mostrar qué tipo de herramienta puede desplegar el AI Squad interno de Rappi en una iteración corta.</p>
     <div class="hero-stats" id="hero-stats">
       <div class="hero-stat"><div class="hero-stat-value">—</div><div class="hero-stat-label">Reseñas analizadas</div></div>
       <div class="hero-stat"><div class="hero-stat-value">—</div><div class="hero-stat-label">Negativas</div></div>
@@ -428,7 +428,7 @@ function html(_supabaseUrl: string, _anonKey: string): string {
   <div class="container">
     <span class="section-label">Hallazgos</span>
     <h2 class="section-title">Lo que aparece en la data</h2>
-    <p class="section-lede">Tres señales que un agente interno atacaría primero. Citas reales de reseñas públicas, anonimizadas.</p>
+    <p class="section-lede">Tres señales que un agente interno priorizaría primero. Citas reales de reseñas públicas, anonimizadas.</p>
     <div class="drill-grid" id="drill-grid"><div class="loading">Cargando hallazgos…</div></div>
   </div>
 </section>
@@ -437,7 +437,7 @@ function html(_supabaseUrl: string, _anonKey: string): string {
   <div class="container">
     <span class="section-label">Verticales</span>
     <h2 class="section-title">Las 5 verticales del dataset</h2>
-    <p class="section-lede">Click en cualquier vertical para ver pain points completos y clusters con citas reales.</p>
+    <p class="section-lede">Haz clic en cualquier vertical para ver pain points completos y clusters con citas reales.</p>
     <div class="v-grid" id="v-grid"><div class="loading">Cargando verticales…</div></div>
   </div>
 </section>
@@ -454,11 +454,11 @@ function html(_supabaseUrl: string, _anonKey: string): string {
         </div>
         <div>
           <span class="section-label">Bot de Telegram</span>
-          <h2>Consultá los briefs desde el celular</h2>
-          <p class="lede">El bot lee del mismo dataset que este dashboard. Agregalo, mandá <code style="font-family:'JetBrains Mono',monospace;color:var(--accent)">/digest</code> y recibís la síntesis en español. Ideal para revisar fire drills en una reunión.</p>
+          <h2>Consulta los briefs desde el móvil</h2>
+          <p class="lede">El bot lee del mismo conjunto de datos que este dashboard. Añádelo, envía <code style="font-family:'JetBrains Mono',monospace;color:var(--accent)">/digest</code> y recibes la síntesis en español. Útil para revisar fire drills en una reunión.</p>
           <div class="bot-commands">
             <div class="cmd"><code>/digest</code><span>— top 5 fire drills de la semana</span></div>
-            <div class="cmd"><code>/vertical &lt;nombre&gt;</code><span>— deep dive por vertical</span></div>
+            <div class="cmd"><code>/vertical &lt;nombre&gt;</code><span>— detalle por vertical</span></div>
             <div class="cmd"><code>/help</code><span>— lista de comandos</span></div>
           </div>
           <a href="https://t.me/Rappi_demo_bot" target="_blank" rel="noopener" class="bot-cta">Abrir en Telegram →</a>
@@ -474,8 +474,8 @@ function html(_supabaseUrl: string, _anonKey: string): string {
     <h2 class="section-title">Cómo se hizo</h2>
     <div class="method-grid">
       <div>
-        <p>El pipeline scrapea reseñas públicas de App Store y Google Play con Apify, las persiste en Supabase con Row-Level Security, y corre dos agentes de Claude en secuencia: el primero clasifica cada reseña (vertical, pain point, sentiment, resumen en español); el segundo agrupa las negativas de la semana en clusters de causa raíz con citas reales.</p>
-        <p>El dashboard y el bot leen del mismo modelo de datos vía la anon key gated por RLS. Cero secretos en el repo público: todo vive como wrangler secrets.</p>
+        <p>El pipeline extrae reseñas públicas de App Store y Google Play con Apify, las persiste en Supabase con Row-Level Security, y ejecuta dos agentes de Claude en secuencia: el primero clasifica cada reseña (vertical, pain point, sentiment, resumen en español); el segundo agrupa las negativas de la semana en clusters de causa raíz con citas reales.</p>
+        <p>El dashboard y el bot leen del mismo modelo de datos a través de la anon key, protegida por RLS. Cero secretos en el repositorio público: todo se gestiona como wrangler secrets.</p>
         <div class="pills">
           <span class="pill">Claude</span>
           <span class="pill">Apify</span>
@@ -516,7 +516,7 @@ Dashboard   Telegram Bot</div>
       </div>
       <div>Alex Friedlander · 2026</div>
     </div>
-    <p class="disclaimer">Demo independiente · no afiliada a Rappi. Basada en reseñas públicas de App Store y Google Play México. El dashboard publica sólo agregados y clusters anonimizados. Si Rappi pide que baje el demo, se apaga el mismo día.</p>
+    <p class="disclaimer">Demo independiente · no afiliada a Rappi. Basada en reseñas públicas de App Store y Google Play México. El dashboard publica sólo agregados y clusters anonimizados. Si Rappi solicita retirarlo, se apaga el mismo día.</p>
   </div>
 </footer>
 
