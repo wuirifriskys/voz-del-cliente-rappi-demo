@@ -33,8 +33,9 @@ fi
 scan() {
   local pattern="$1"
   local label="$2"
+  # -I flag skips binary files so random JPEG/PNG bytes don't trigger false positives.
   local hits
-  hits=$(git ls-files -z | xargs -0 grep -lE "$pattern" 2>/dev/null | grep -v '^\.env\.example$' || true)
+  hits=$(git ls-files -z | xargs -0 grep -IlE "$pattern" 2>/dev/null | grep -v '^\.env\.example$' || true)
   if [ -n "$hits" ]; then
     fail "$label found in: $hits"
   else
