@@ -8,7 +8,7 @@ import { serverClient } from "../lib/supabase.ts";
 import type { PainPoint, Vertical, WeeklyBrief } from "../lib/types.ts";
 
 const VERTICALS: Vertical[] = ["food", "grocery", "pharmacy", "rappipay", "courier", "app", "other"];
-const LOOKBACK_DAYS = 7;
+const LOOKBACK_DAYS = Number(process.env.CLUSTER_LOOKBACK_DAYS ?? 7);
 const MAX_REVIEWS_PER_VERTICAL = 500;
 
 interface JoinedRow {

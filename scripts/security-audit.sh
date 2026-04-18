@@ -45,7 +45,9 @@ scan() {
 scan 'sk-ant-api[0-9]+-[A-Za-z0-9_-]{20,}' "Anthropic key"
 scan '(^|[^A-Za-z])sk-[A-Za-z0-9]{20,}' "OpenAI-style key"
 scan 'apify_api_[A-Za-z0-9]{20,}' "Apify token"
-scan 'eyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]{20,}' "JWT (Supabase-style)"
+scan 'eyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]{20,}' "JWT (Supabase legacy)"
+scan 'sb_secret_[A-Za-z0-9]{20,}' "Supabase service role (new format)"
+scan 'sb_publishable_[A-Za-z0-9]{20,}' "Supabase publishable (new format, should only be in env)"
 scan '[0-9]{6,12}:[A-Za-z0-9_-]{30,}' "Telegram bot token"
 
 # 4. wrangler.toml must not contain a real key

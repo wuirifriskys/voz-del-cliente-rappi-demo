@@ -10,22 +10,24 @@ import type { RawReview } from "../lib/types.ts";
 //   APIFY_TOKEN — Apify API token
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — to persist raw reviews
 
-const GOOGLE_PLAY_ACTOR = process.env.APIFY_GOOGLE_PLAY_ACTOR ?? "lhotanok/google-play-reviews-scraper";
-const APP_ID = "com.grability.rappi"; // Rappi Android package id
+const GOOGLE_PLAY_ACTOR = process.env.APIFY_GOOGLE_PLAY_ACTOR ?? "neatrat/google-play-store-reviews-scraper";
+// Use the full Play Store URL with MX locale so the actor returns MX reviews.
+const APP_URL = "https://play.google.com/store/apps/details?id=com.grability.rappi&gl=mx&hl=es";
 const MAX_REVIEWS = Number(process.env.SCRAPE_MAX ?? 2500);
 
 export async function scrapeGooglePlay(): Promise<number> {
   const apify = new ApifyClient({ token: requireEnv("APIFY_TOKEN") });
   const supabase = serverClient();
 
-  console.log(`[google-play] running actor ${GOOGLE_PLAY_ACTOR} for ${APP_ID} (max ${MAX_REVIEWS})`);
+  console.log(`[google-play] running actor ${GOOGLE_PLAY_ACTOR} for Rappi MX (max ${MAX_REVIEWS})`);
 
   const run = await apify.actor(GOOGLE_PLAY_ACTOR).call({
-    appIds: [APP_ID],
-    country: "mx",
-    language: "es",
+    appIdOrUrl: APP_URL,
+    sortBy: "newest",
     maxReviews: MAX_REVIEWS,
-    sort: "newest",
+    reviewsPerPage: 100,
+    pagesToScrape: Math.ceil(MAX_REVIEWS / 100),
+    uniqueOnly: false,
   });
 
   const { items } = await apify.dataset(run.defaultDatasetId).listItems();
@@ -48,10 +50,11 @@ export async function scrapeGooglePlay(): Promise<number> {
 }
 
 function toRawReview(raw: Record<string, unknown>): RawReview | null {
+  // neatrat schema: reviewId, rating, reviewer, date, body, language, timestamp, ...
   const reviewId = (raw.reviewId ?? raw.id) as string | undefined;
-  const text = (raw.text ?? raw.content) as string | undefined;
-  const rating = Number(raw.score ?? raw.rating);
-  const dateRaw = (raw.at ?? raw.date) as string | undefined;
+  const text = (raw.body ?? raw.text ?? raw.content) as string | undefined;
+  const rating = Number(raw.rating ?? raw.score);
+  const dateRaw = (raw.date ?? raw.at) as string | undefined;
   if (!reviewId || !text || !Number.isFinite(rating) || !dateRaw) return null;
 
   return {
@@ -60,8 +63,8 @@ function toRawReview(raw: Record<string, unknown>): RawReview | null {
     rating: Math.max(1, Math.min(5, Math.round(rating))),
     review_date: new Date(dateRaw).toISOString(),
     text,
-    language: (raw.language as string) ?? "es",
+    language: (raw.language as string) ?? (raw.reviewedIn as string) ?? "es",
     country: "MX",
-    raw_author_id: (raw.userName as string) ?? null,
+    raw_author_id: (raw.reviewer as string) ?? (raw.userName as string) ?? null,
   };
 }

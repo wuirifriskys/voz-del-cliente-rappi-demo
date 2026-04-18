@@ -9,8 +9,8 @@ import type { RawReview } from "../lib/types.ts";
 // The actor id and schema can change — if Apify auth fails or the actor is missing,
 // Alex can swap in any equivalent actor without code changes beyond the APIFY_APP_STORE_ACTOR env var.
 
-const APP_STORE_ACTOR = process.env.APIFY_APP_STORE_ACTOR ?? "websift/app-store-reviews";
-const APP_URL = "https://apps.apple.com/mx/app/rappi/id975377829";
+const APP_STORE_ACTOR = process.env.APIFY_APP_STORE_ACTOR ?? "benthepythondev/appstore-reviews-scraper";
+const APP_STORE_URL = "https://apps.apple.com/mx/app/rappi/id975377829";
 const MAX_REVIEWS = Number(process.env.SCRAPE_MAX ?? 2500);
 
 export async function scrapeAppStore(): Promise<number> {
@@ -20,10 +20,10 @@ export async function scrapeAppStore(): Promise<number> {
   console.log(`[app-store] running actor ${APP_STORE_ACTOR} for Rappi MX (max ${MAX_REVIEWS})`);
 
   const run = await apify.actor(APP_STORE_ACTOR).call({
-    startUrls: [{ url: APP_URL }],
-    country: "mx",
+    appUrls: [APP_STORE_URL],
+    countries: ["mx"],
     maxReviews: MAX_REVIEWS,
-    sort: "mostRecent",
+    sortBy: "mostRecent",
   });
 
   const { items } = await apify.dataset(run.defaultDatasetId).listItems();
@@ -45,11 +45,13 @@ export async function scrapeAppStore(): Promise<number> {
 }
 
 function toRawReview(raw: Record<string, unknown>): RawReview | null {
-  const reviewId = (raw.id ?? raw.reviewId) as string | undefined;
-  const text = (raw.review ?? raw.text ?? raw.body) as string | undefined;
+  // jdtpnjtp's schema: { reviewId, userName, title, review, rating, date, ... }
+  // Some actors wrap reviews under a `reviews` array or return flat items — handle both.
+  const reviewId = (raw.reviewId ?? raw.id) as string | undefined;
+  const text = (raw.review ?? raw.body ?? raw.text) as string | undefined;
   const title = (raw.title as string) ?? "";
   const rating = Number(raw.rating ?? raw.score);
-  const dateRaw = (raw.date ?? raw.updated) as string | undefined;
+  const dateRaw = (raw.date ?? raw.updated ?? raw.createdAt) as string | undefined;
   if (!reviewId || !text || !Number.isFinite(rating) || !dateRaw) return null;
 
   return {
