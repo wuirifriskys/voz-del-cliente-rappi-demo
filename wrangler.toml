@@ -14,6 +14,14 @@ name = "voz-del-cliente-rappi-demo"
 main = "src/worker.ts"
 compatibility_date = "2025-01-01"
 
+# Public static assets — files in ./public/ are served at the matching path
+# (e.g., public/avatar.jpg → /avatar.jpg). The Worker script still handles
+# routes that aren't matched by a static file.
+[assets]
+directory = "./public"
+not_found_handling = "none"
+binding = "ASSETS"
+
 # All values (including Supabase URL + anon key) are set via `wrangler secret put`
 # so the public repo never contains any live credential, even RLS-gated ones.
 # Expected secrets (set once, then `wrangler deploy`):

@@ -49,13 +49,23 @@ export async function runClusterer(): Promise<{ briefs: number }> {
       continue;
     }
 
-    const painCounts = countBy(rows.map((r) => r.pain_point));
+    // Top pain points are actionable complaint categories. We exclude pain_point="other"
+    // because it mostly captures positive reviews (no pain) and vague negatives. Share
+    // is computed against the number of reviews WITH a specific pain — so shares stay
+    // meaningful (they represent % of actionable complaints, not % of all reviews).
+    const withSpecificPain = rows.filter((r) => r.pain_point !== "other");
+    const painCounts = countBy(withSpecificPain.map((r) => r.pain_point));
     const topPainPoints = Object.entries(painCounts)
-      .map(([pain_point, count]) => ({ pain_point: pain_point as PainPoint, count, share: count / rows.length }))
+      .map(([pain_point, count]) => ({
+        pain_point: pain_point as PainPoint,
+        count,
+        share: withSpecificPain.length > 0 ? count / withSpecificPain.length : 0,
+      }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 3);
+      .slice(0, 5);
 
-    const clusters = await clusterWithClaude(claude, vertical, rows);
+    // Clusters only look at reviews with a specific pain point (not positives, not "other")
+    const clusters = await clusterWithClaude(claude, vertical, withSpecificPain);
     const negativeShare = rows.filter((r) => r.sentiment <= 2).length / rows.length;
 
     const brief: WeeklyBrief = {
