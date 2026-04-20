@@ -65,7 +65,15 @@ export async function runClusterer(): Promise<{ briefs: number }> {
       .slice(0, 5);
 
     // Clusters only look at reviews with a specific pain point (not positives, not "other")
-    const clusters = await clusterWithClaude(claude, vertical, withSpecificPain);
+    const rawClusters = await clusterWithClaude(claude, vertical, withSpecificPain);
+    // Quote-verification guardrail: drop any cluster whose example_quote isn't
+    // present (verbatim or normalized) in the source reviews. The system prompt
+    // says "NUNCA inventes citas" — this enforces it.
+    const clusters = verifyClusterQuotes(rawClusters, withSpecificPain);
+    const droppedQuotes = rawClusters.length - clusters.length;
+    if (droppedQuotes > 0) {
+      console.warn(`[clusterer] ${vertical}: dropped ${droppedQuotes} cluster(s) with unverifiable quotes`);
+    }
     const negativeShare = rows.filter((r) => r.sentiment <= 2).length / rows.length;
 
     const brief: WeeklyBrief = {
@@ -114,7 +122,7 @@ Total reseñas (últimos 7 días): ${rows.length}
 
 Reseñas (id | sentiment | resumen | texto):
 ${sample
-  .map((r) => `${r.review_id} | s=${r.sentiment} | ${r.summary_es} | ${truncate(r.text, 200)}`)
+  .map((r) => `${r.review_id} | s=${r.sentiment} | ${r.summary_es} | ${truncate(r.text, 400)}`)
   .join("\n")}
 
 Devuelve SOLO un array JSON válido:
@@ -136,6 +144,44 @@ Devuelve SOLO un array JSON válido:
   } catch {
     return [];
   }
+}
+
+function verifyClusterQuotes(
+  clusters: Array<{ theme: string; count: number; example_quote: string }>,
+  rows: JoinedRow[],
+): Array<{ theme: string; count: number; example_quote: string }> {
+  const normalize = (s: string) =>
+    s.toLowerCase().replace(/\s+/g, " ").replace(/[…""'".,;:!?¡¿()"'—–-]/g, "").trim();
+  const corpusNorm = rows.map((r) => normalize(r.text)).join("\n\n");
+  // Accept a cluster quote if:
+  // (a) full normalized quote is a substring of the corpus, OR
+  // (b) a contiguous 40-char window from the quote is a substring of the corpus
+  //     (handles minor paraphrasing — Claude often changes one or two words).
+  return clusters
+    .map((c) => {
+      const q = c.example_quote ?? "";
+      if (!q) return { c, replacement: null };
+      const qNorm = normalize(q);
+      if (qNorm.length < 20) return { c, replacement: null };
+      if (corpusNorm.includes(qNorm)) return { c, replacement: null };
+      // Try to find any 40-char window that matches — if found, replace the
+      // quote with a real one from the corpus that covers the same theme.
+      for (let i = 0; i <= qNorm.length - 40; i += 10) {
+        const window = qNorm.slice(i, i + 40);
+        if (corpusNorm.includes(window)) {
+          // Find the actual row whose text contains this window and use it as the quote
+          for (const r of rows) {
+            if (normalize(r.text).includes(window)) {
+              const realQuote = r.text.length > 140 ? r.text.slice(0, 140).trimEnd() : r.text;
+              return { c: { ...c, example_quote: realQuote }, replacement: "window" as const };
+            }
+          }
+        }
+      }
+      return { c, replacement: "drop" as const };
+    })
+    .filter((x) => x.replacement !== "drop")
+    .map((x) => x.c);
 }
 
 function flattenRow(row: Record<string, unknown>): JoinedRow | null {

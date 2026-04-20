@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { requireWorkerEnv } from "./lib/env.ts";
 import type { WeeklyBrief } from "./lib/types.ts";
 import { handleTelegramUpdate } from "./bot/telegram.ts";
+import { computeTrends } from "./lib/trends.ts";
 
 export interface Env {
   SUPABASE_URL: string;
@@ -24,6 +25,9 @@ export default {
     }
     if (url.pathname === "/api/briefs") {
       return briefs(env);
+    }
+    if (url.pathname === "/api/trends") {
+      return trends(env);
     }
     if (url.pathname.startsWith("/telegram/")) {
       return telegram(request, env, url);
@@ -54,6 +58,24 @@ async function briefs(env: Env): Promise<Response> {
 
   if (error) return json({ error: error.message }, 500);
   return json({ briefs: data ?? [] });
+}
+
+// Per-week per-vertical trend snapshot. Cached 30 min. See src/lib/trends.ts.
+async function trends(env: Env): Promise<Response> {
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) return json({ error: "trends unavailable (no service role)" }, 503);
+  try {
+    const out = await computeTrends(requireWorkerEnv(env, "SUPABASE_URL"), serviceKey);
+    return new Response(JSON.stringify({ trends: out }), {
+      status: 200,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "public, max-age=1800", // 30 min
+      },
+    });
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
 }
 
 async function telegram(request: Request, env: Env, url: URL): Promise<Response> {
@@ -280,6 +302,70 @@ function html(_supabaseUrl: string, _anonKey: string): string {
     color: var(--accent); font-size: 13px; font-weight: 600;
   }
 
+  /* TREND SECTION — week-over-week */
+  .trend-insights {
+    display: grid; gap: 12px; margin-bottom: 28px;
+  }
+  .trend-insight {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px 20px; display: flex; align-items: center; gap: 16px;
+    border-left: 3px solid var(--border-hover);
+  }
+  .trend-insight.worse { border-left-color: var(--danger); }
+  .trend-insight.better { border-left-color: var(--success); }
+  .trend-insight .tag {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--muted-2); width: 80px; flex-shrink: 0;
+  }
+  .trend-insight .copy { flex: 1; font-size: 14px; line-height: 1.5; }
+  .trend-insight .copy b { color: var(--text); font-weight: 600; }
+  .trend-insight .delta {
+    font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px;
+    margin-left: 8px;
+  }
+  .trend-insight.worse .delta { color: var(--danger); }
+  .trend-insight.better .delta { color: var(--success); }
+
+  .trend-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;
+  }
+  .trend-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 20px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .trend-card .v-name {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 2px; color: var(--accent);
+  }
+  .trend-card .headline {
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .trend-card .headline .now {
+    font-size: 28px; font-weight: 700; letter-spacing: -0.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .trend-card .headline .label { font-size: 12px; color: var(--muted); }
+  .trend-card .headline .delta {
+    font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+    padding: 2px 8px; border-radius: 6px;
+  }
+  .trend-card .delta.worse { background: rgba(255, 76, 100, 0.15); color: var(--danger); }
+  .trend-card .delta.better { background: rgba(52, 211, 153, 0.15); color: var(--success); }
+  .trend-card .delta.flat { background: var(--bg-2); color: var(--muted); }
+  .trend-card .sparkline { width: 100%; height: 50px; }
+  .trend-card .weeks-label {
+    display: flex; justify-content: space-between; font-size: 11px;
+    color: var(--muted-2); font-family: 'JetBrains Mono', monospace;
+  }
+  .trend-card .top-pain {
+    font-size: 12px; color: var(--muted); border-top: 1px solid var(--border);
+    padding-top: 10px;
+  }
+  .trend-card .top-pain b { color: var(--text); font-weight: 600; }
+  .trend-note {
+    font-size: 12px; color: var(--muted-2); margin-top: 18px; line-height: 1.6;
+  }
+
   /* EXPLORER (T2.4) — interactive vertical tabs */
   .explorer { border-top: 1px solid var(--border); }
   .tabs {
@@ -487,6 +573,7 @@ function html(_supabaseUrl: string, _anonKey: string): string {
     <div class="logo"><span class="grad">Voz del Cliente</span> · Rappi MX</div>
     <div class="nav-links">
       <a href="#hallazgos">Hallazgos</a>
+      <a href="#tendencia">Tendencia</a>
       <a href="#explorer">Verticales</a>
       <a href="#bot">Bot</a>
       <a href="#metodologia">Cómo se hizo</a>
@@ -499,7 +586,7 @@ function html(_supabaseUrl: string, _anonKey: string): string {
   <div class="container">
     <span class="hero-tag">Demo AI Builder · Alex Friedlander</span>
     <h1>Reseñas de Rappi México,<br><span class="grad">analizadas por agentes de IA.</span></h1>
-    <p class="hero-sub">Un pipeline que extrae reseñas públicas de Google Play, las clasifica por vertical y causa raíz con Claude, y agrupa patrones semanales con citas reales. Cuatro horas de desarrollo para mostrar qué tipo de herramienta puede desplegar el AI Squad interno de Rappi en una iteración corta.</p>
+    <p class="hero-sub">Un pipeline que extrae reseñas públicas de Google Play, las clasifica por vertical y causa raíz con Claude, agrupa patrones semanales con citas reales, y <strong>detecta cambios semana a semana</strong> en los temas de queja. Cuatro horas para el MVP, iterado hasta cobertura completa del corpus y verificación automática de citas.</p>
     <div class="hero-stats" id="hero-stats">
       <div class="hero-stat"><div class="hero-stat-value">—</div><div class="hero-stat-label">Reseñas analizadas</div></div>
       <div class="hero-stat"><div class="hero-stat-value">—</div><div class="hero-stat-label">Negativas</div></div>
@@ -524,6 +611,18 @@ function html(_supabaseUrl: string, _anonKey: string): string {
     <h2 class="section-title">Las verticales del dataset</h2>
     <p class="section-lede">Haz clic en cualquier vertical para abrir el explorador interactivo con pain points y clusters.</p>
     <div class="v-grid" id="v-grid"><div class="loading">Cargando verticales…</div></div>
+  </div>
+</section>
+
+<!-- Week-over-week trend section -->
+<section id="tendencia">
+  <div class="container">
+    <span class="section-label">Tendencia</span>
+    <h2 class="section-title">Qué se está moviendo</h2>
+    <p class="section-lede">Share negativa por vertical en las últimas 6 semanas ISO. Sparkline = histórico; flecha = Δ entre la primera y la última semana del histórico.</p>
+    <div id="trend-insights" class="trend-insights"></div>
+    <div id="trend-grid" class="trend-grid"><div class="loading">Cargando tendencias…</div></div>
+    <p class="trend-note">N reducido por semana en algunas verticales (p.ej. grocery). Las tendencias más robustas son las que vienen de volumen alto (app, courier).</p>
   </div>
 </section>
 
@@ -552,6 +651,7 @@ function html(_supabaseUrl: string, _anonKey: string): string {
           <p class="lede">El bot lee del mismo conjunto de datos que este dashboard. Añádelo, envía <code style="font-family:'JetBrains Mono',monospace;color:var(--accent)">/digest</code> y recibes la síntesis en español. Útil para revisar fire drills en una reunión.</p>
           <div class="bot-commands">
             <div class="cmd"><code>/digest</code><span>— top 5 fire drills de la semana</span></div>
+            <div class="cmd"><code>/trend</code><span>— qué se está moviendo (6 semanas)</span></div>
             <div class="cmd"><code>/vertical &lt;nombre&gt;</code><span>— detalle por vertical</span></div>
             <div class="cmd"><code>/help</code><span>— lista de comandos</span></div>
           </div>
@@ -571,6 +671,7 @@ function html(_supabaseUrl: string, _anonKey: string): string {
       <div>
         <p>El pipeline extrae reseñas públicas de Google Play con varios actores de Apify, las persiste en Supabase con Row-Level Security, y ejecuta dos agentes de Claude en secuencia: el primero clasifica cada reseña (vertical, pain point, sentiment, resumen en español); el segundo agrupa las negativas de la semana en clusters de causa raíz con citas reales.</p>
         <p>El dashboard y el bot leen del mismo modelo de datos a través de la anon key, protegida por RLS. Cero secretos en el repositorio público: todo se gestiona como wrangler secrets.</p>
+        <p style="font-size:13px;color:var(--muted-2)"><strong>Alcance de los datos:</strong> solo Google Play México (Android). iOS App Store omitido porque los endpoints públicos de Apple retornan vacío para Rappi MX (probado contra 5 actores de Apify distintos). Deduplicación por UUID; citas verificadas contra texto original antes de publicar. Los porcentajes de pain points excluyen reseñas positivas o vagas (pain="other") para mantener el denominador accionable.</p>
         <div class="pills">
           <span class="pill">Claude</span>
           <span class="pill">Apify</span>
@@ -639,7 +740,7 @@ function html(_supabaseUrl: string, _anonKey: string): string {
           <g class="arch-node">
             <rect x="20" y="400" width="130" height="18" rx="6"></rect>
             <text x="85" y="413" text-anchor="middle">Dashboard (Worker)</text>
-            <title>Este dashboard. Cloudflare Worker sirve HTML + /api/briefs público.</title>
+            <title>Este dashboard. Cloudflare Worker sirve HTML + /api/briefs (snapshot semanal) + /api/trends (6 semanas agregadas, cacheado 30 min).</title>
           </g>
           <g class="arch-node">
             <rect x="250" y="400" width="130" height="18" rx="6"></rect>
@@ -700,7 +801,11 @@ function html(_supabaseUrl: string, _anonKey: string): string {
     courier_behavior: 'Comportamiento del repartidor',
     price_complaint: 'Queja de precio', other: 'Otro',
   };
-  const DRILL_RANK = ['rappipay', 'courier', 'app', 'food', 'grocery', 'pharmacy', 'other'];
+  // Fire Drill ranking is data-driven: negative_share × log(total_reviews + 1).
+  // Rewards verticals that are BOTH very negative AND high volume.
+  function drillScore(b) {
+    return b.negative_share * Math.log((b.total_reviews || 0) + 1);
+  }
 
   (async () => {
     try {
@@ -720,22 +825,139 @@ function html(_supabaseUrl: string, _anonKey: string): string {
       renderVerticals(thisWeek);
       renderExplorer(thisWeek);
       startTicker(thisWeek);
+      loadTrends(thisWeek);
     } catch (err) {
       document.getElementById('drill-grid').innerHTML = '<div class="error">Error cargando: ' + escapeHtml(err.message) + '</div>';
       startTicker([]);
     }
   })();
 
+  async function loadTrends(briefs) {
+    try {
+      const res = await fetch('/api/trends');
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const trends = data.trends || [];
+      renderTrends(trends);
+      if (briefs && briefs.length) upgradeHeroWithCorpus(trends, briefs);
+    } catch (err) {
+      document.getElementById('trend-grid').innerHTML = '<div class="error">Error cargando tendencias: ' + escapeHtml(err.message) + '</div>';
+    }
+  }
+
+  function renderTrends(trends) {
+    // Filter verticals with at least 4 weeks of data and non-trivial volume
+    const usable = trends.filter(t => t.weeks.length >= 4 && t.weeks.some(w => w.total_reviews >= 20));
+
+    // Build insights: biggest movers (neg_share from oldest → newest in window)
+    const movers = usable.map(t => {
+      const first = t.weeks[0];
+      const last = t.weeks[t.weeks.length - 1];
+      const delta = (last.negative_share - first.negative_share) * 100;
+      return { vertical: t.vertical, first, last, delta, nWeeks: t.weeks.length };
+    }).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+    const insightsEl = document.getElementById('trend-insights');
+    insightsEl.innerHTML = movers.slice(0, 3).map(m => {
+      const dir = m.delta > 2 ? 'worse' : m.delta < -2 ? 'better' : 'flat';
+      const arrow = dir === 'worse' ? '↑' : dir === 'better' ? '↓' : '→';
+      const verb = dir === 'worse' ? 'subió' : dir === 'better' ? 'bajó' : 'se mantiene';
+      const tag = dir === 'worse' ? 'Empeora' : dir === 'better' ? 'Mejora' : 'Estable';
+      return '<div class="trend-insight ' + dir + '">' +
+        '<span class="tag">' + tag + '</span>' +
+        '<div class="copy"><b>' + (VERTICAL_LABELS[m.vertical] || m.vertical) + '</b>: share negativa ' + verb + ' de <b>' +
+          Math.round(m.first.negative_share * 100) + '%</b> a <b>' + Math.round(m.last.negative_share * 100) +
+          '%</b> en ' + (m.nWeeks - 1) + ' semanas. <span class="delta">' + arrow + ' ' + (m.delta > 0 ? '+' : '') + Math.round(m.delta) + 'pp</span></div>' +
+      '</div>';
+    }).join('');
+
+    // Render sparkline cards
+    const gridEl = document.getElementById('trend-grid');
+    gridEl.innerHTML = usable.map(t => {
+      const last = t.weeks[t.weeks.length - 1];
+      const first = t.weeks[0];
+      const delta = (last.negative_share - first.negative_share) * 100;
+      const deltaClass = delta > 2 ? 'worse' : delta < -2 ? 'better' : 'flat';
+      const deltaSym = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+      const topPain = (last.top_pain_points || [])[0];
+      const topPainLabel = topPain ? (PAIN_LABELS[topPain.pain_point] || topPain.pain_point) : '—';
+      const topPainPct = topPain ? Math.round(topPain.share * 100) : 0;
+      return '<div class="trend-card">' +
+        '<div class="v-name">' + (VERTICAL_LABELS[t.vertical] || t.vertical) + '</div>' +
+        '<div class="headline">' +
+          '<span class="now">' + Math.round(last.negative_share * 100) + '%</span>' +
+          '<span class="label">negativas</span>' +
+          '<span class="delta ' + deltaClass + '">' + deltaSym + ' ' + (delta > 0 ? '+' : '') + Math.round(delta) + 'pp</span>' +
+        '</div>' +
+        buildSparkline(t.weeks) +
+        '<div class="weeks-label"><span>' + t.weeks[0].week.slice(-3) + '</span><span>' + last.week.slice(-3) + '</span></div>' +
+        (topPain ? '<div class="top-pain">Top pain actual: <b>' + escapeHtml(topPainLabel) + '</b> (' + topPainPct + '%)</div>' : '') +
+      '</div>';
+    }).join('');
+  }
+
+  function buildSparkline(weeks) {
+    if (!weeks.length) return '<svg class="sparkline"></svg>';
+    const W = 240, H = 50, P = 4;
+    const values = weeks.map(w => w.negative_share);
+    const max = 1, min = 0; // show on 0-100% fixed scale for cross-vertical comparability
+    const points = values.map((v, i) => {
+      const x = P + (i * (W - 2 * P)) / Math.max(1, values.length - 1);
+      const y = P + (H - 2 * P) * (1 - (v - min) / (max - min));
+      return { x, y, v };
+    });
+    const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+    const area = 'M' + points[0].x.toFixed(1) + ' ' + (H - P) + ' L' +
+      points.map(p => p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' L') +
+      ' L' + points[points.length - 1].x.toFixed(1) + ' ' + (H - P) + ' Z';
+    const circles = points.map(p =>
+      '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="2.5" fill="var(--accent)" />'
+    ).join('');
+    return '<svg class="sparkline" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">' +
+      '<path d="' + area + '" fill="rgba(255,111,60,0.12)" />' +
+      '<path d="' + path + '" stroke="var(--accent)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />' +
+      circles +
+    '</svg>';
+  }
+
   function renderHeroStats(briefs) {
-    const total = briefs.reduce((s, b) => s + b.total_reviews, 0);
-    const totalNeg = briefs.reduce((s, b) => s + Math.round(b.total_reviews * b.negative_share), 0);
+    const weekTotal = briefs.reduce((s, b) => s + b.total_reviews, 0);
+    const weekNeg = briefs.reduce((s, b) => s + Math.round(b.total_reviews * b.negative_share), 0);
     const clusters = briefs.reduce((s, b) => s + (b.clusters ? b.clusters.length : 0), 0);
-    const negShare = total ? Math.round(totalNeg / total * 100) : 0;
+    const negShare = weekTotal ? Math.round(weekNeg / weekTotal * 100) : 0;
+    // Placeholder hero — values below get upgraded by upgradeHeroWithCorpus()
+    // once /api/trends returns (total corpus count + week span are derived there).
     const stats = [
-      { v: total.toLocaleString('es-MX'), k: 'Reseñas analizadas' },
-      { v: negShare + '%', k: 'Negativas' },
-      { v: briefs.length, k: 'Verticales' },
-      { v: clusters, k: 'Clusters' },
+      { v: weekTotal.toLocaleString('es-MX'), k: 'Reseñas esta semana' },
+      { v: negShare + '%', k: 'Negativas (W' + (briefs[0] ? briefs[0].week_start : '') + ')' },
+      { v: briefs.length, k: 'Verticales con brief' },
+      { v: clusters, k: 'Clusters W16' },
+    ];
+    document.getElementById('hero-stats').innerHTML = stats.map(x =>
+      '<div class="hero-stat"><div class="hero-stat-value">' + x.v + '</div><div class="hero-stat-label">' + x.k + '</div></div>'
+    ).join('');
+  }
+
+  function upgradeHeroWithCorpus(trends, briefs) {
+    const corpusTotal = trends.reduce((s, t) => s + t.weeks.reduce((a, w) => a + w.total_reviews, 0), 0);
+    const nWeeks = Math.max(...trends.map(t => t.weeks.length), 0);
+    const weekTotal = briefs.reduce((s, b) => s + b.total_reviews, 0);
+    const weekNeg = briefs.reduce((s, b) => s + Math.round(b.total_reviews * b.negative_share), 0);
+    const negShare = weekTotal ? Math.round(weekNeg / weekTotal * 100) : 0;
+    // Biggest absolute week-over-window delta across trendable verticals
+    const usable = trends.filter(t => t.weeks.length >= 4 && t.weeks.some(w => w.total_reviews >= 20));
+    const movers = usable.map(t => {
+      const d = (t.weeks[t.weeks.length - 1].negative_share - t.weeks[0].negative_share) * 100;
+      return { vertical: t.vertical, d };
+    }).sort((a, b) => Math.abs(b.d) - Math.abs(a.d));
+    const topMover = movers[0];
+    const stats = [
+      { v: corpusTotal.toLocaleString('es-MX'), k: 'Reseñas analizadas (' + nWeeks + ' sem)' },
+      { v: weekTotal.toLocaleString('es-MX'), k: 'En la última semana' },
+      { v: negShare + '%', k: 'Negativas (última semana)' },
+      topMover
+        ? { v: (topMover.d >= 0 ? '+' : '') + Math.round(topMover.d) + 'pp', k: 'Mayor Δ · ' + (VERTICAL_LABELS[topMover.vertical] || topMover.vertical) }
+        : { v: briefs.reduce((s, b) => s + (b.clusters ? b.clusters.length : 0), 0), k: 'Clusters última semana' },
     ];
     document.getElementById('hero-stats').innerHTML = stats.map(x =>
       '<div class="hero-stat"><div class="hero-stat-value">' + x.v + '</div><div class="hero-stat-label">' + x.k + '</div></div>'
@@ -744,8 +966,8 @@ function html(_supabaseUrl: string, _anonKey: string): string {
 
   function renderDrills(briefs) {
     const sorted = briefs
-      .filter(b => b.vertical !== 'other')
-      .sort((a, b) => DRILL_RANK.indexOf(a.vertical) - DRILL_RANK.indexOf(b.vertical))
+      .filter(b => b.vertical !== 'other' && b.total_reviews >= 25)
+      .sort((a, b) => drillScore(b) - drillScore(a))
       .slice(0, 3);
     document.getElementById('drill-grid').innerHTML = sorted.map((b, i) => {
       const topPain = (b.top_pain_points || [])[0];
@@ -771,6 +993,8 @@ function html(_supabaseUrl: string, _anonKey: string): string {
 
   function buildHeadline(negPct, painPct, painLabel) {
     if (!painLabel) return negPct + '% de las reseñas son negativas.';
+    // painPct denominator = reviews with a specific pain (excludes positives/vague).
+    // Disclosed in the Metodología section.
     return negPct + '% negativas. ' + painPct + '% son ' + painLabel.toLowerCase() + '.';
   }
 
@@ -782,10 +1006,14 @@ function html(_supabaseUrl: string, _anonKey: string): string {
         const label = PAIN_LABELS[p.pain_point] || p.pain_point;
         return '<div class="v-pain"><span>' + escapeHtml(label) + '</span><b>' + pct + '%</b></div>';
       }).join('');
+      const posPct = 100 - negPct;
+      const smallN = b.total_reviews < 25;
       return '<a href="#explorer" class="v-card" data-vertical="' + b.vertical + '">' +
-        '<div class="v-name">' + (VERTICAL_LABELS[b.vertical] || b.vertical) + '</div>' +
+        '<div class="v-name">' + (VERTICAL_LABELS[b.vertical] || b.vertical) +
+          (smallN ? ' <span style="background:var(--bg-2);color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:10px;font-weight:500;letter-spacing:0.5px;margin-left:6px">muestra pequeña</span>' : '') +
+        '</div>' +
         '<div class="v-total">' + b.total_reviews + '<small>reseñas</small></div>' +
-        '<div class="v-neg-label">' + negPct + '% negativas</div>' +
+        '<div class="v-neg-label">' + negPct + '% negativas · <span style="color:var(--success)">' + posPct + '% positivas o neutras</span></div>' +
         '<div class="bar-track"><div class="bar-fill" style="width:' + negPct + '%"></div></div>' +
         '<div class="v-pains">' + pains + '</div>' +
         '<div class="v-link">Ver detalle ↓</div>' +
@@ -846,7 +1074,7 @@ function html(_supabaseUrl: string, _anonKey: string): string {
       '<div class="cluster-card">' +
         '<div class="theme-row">' +
           '<div class="theme">' + escapeHtml(c.theme) + '</div>' +
-          '<div class="count">' + c.count + '</div>' +
+          '<div class="count" title="Estimado por el modelo">~' + c.count + '</div>' +
         '</div>' +
         (c.example_quote ? '<div class="quote">&ldquo;' + escapeHtml(c.example_quote) + '&rdquo;</div>' : '') +
       '</div>'
@@ -856,7 +1084,7 @@ function html(_supabaseUrl: string, _anonKey: string): string {
         '<div class="meta-item"><span class="meta-k">Reseñas</span><span class="meta-v">' + b.total_reviews + '</span></div>' +
         '<div class="meta-item"><span class="meta-k">Negativas</span><span class="meta-v">' + negPct + '%</span></div>' +
         '<div class="meta-item"><span class="meta-k">Top pain point</span><span class="meta-v">' + escapeHtml(topPainLabel) + '</span></div>' +
-        '<div class="meta-item"><span class="meta-k">Semana</span><span class="meta-v">' + escapeHtml(b.week_start) + '</span></div>' +
+        '<div class="meta-item"><span class="meta-k">Periodo</span><span class="meta-v">' + escapeHtml(b.week_start) + ' · 7 días</span></div>' +
       '</div>' +
       '<div class="panel-cols">' +
         '<div class="panel-col"><h4>Distribución de pain points</h4>' + painBars + '</div>' +

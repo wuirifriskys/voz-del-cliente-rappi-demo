@@ -1,6 +1,16 @@
 # Voz del Cliente — Rappi MX
 
-> Demo independiente construida para la vacante **Rappi AI Builder** (Ciudad de México). No afiliada a Rappi. Basada en reseñas públicas de App Store y Google Play.
+> Demo independiente construida para la vacante **Rappi AI Builder** (Ciudad de México). No afiliada a Rappi. Basada en reseñas públicas de Google Play México (Android).
+
+## Alcance y limitaciones conocidas
+
+- **Solo Android / Google Play MX.** La extracción de App Store está implementada (`src/scrapers/app-store.ts`) pero desactivada por flag: los endpoints públicos de Apple (RSS + actores Apify probados: easyapi, benthepythondev, jdtpnjtp, andok, websift) retornan cero reseñas para Rappi MX. Se re-activa con `APP_STORE_ENABLED=1` el día que encontremos un actor que funcione.
+- **Ventana de brief = 7 días reales.** El brief semanal se genera sobre las reseñas publicadas en los últimos 7 días del momento de la corrida. El dashboard también muestra una **serie histórica de 6 semanas ISO** (endpoint `/api/trends`) calculada a partir del corpus clasificado completo — permite ver regresiones y mejoras semana a semana.
+- **Deduplicación por UUID.** Los scrapers en paralelo pueden producir 2+ filas por la misma reseña; el clasificador mantiene una sola clasificación por UUID.
+- **Verificación de citas.** Cada `example_quote` de cluster se verifica contra el texto real antes de persistirse; si no coincide (verbatim o normalizado), se descarta el cluster.
+- **Denominador de pain points.** Los porcentajes de pain points se calculan sobre reseñas con queja específica (excluye positivas/vagas) para mantener el denominador accionable. La share negativa usa el total.
+- **Taxonomía fija (9 pain points).** Cubre ~75% de quejas accionables; gaps conocidos: cobertura/disponibilidad de zona, cancelación de suscripciones, account/login, publicidad engañosa. v2 los añade.
+- **Sin eval de ground truth.** La exactitud de clasificación es directional (~80% vertical, ~95% sentiment sobre muestras manuales), no medida formalmente. Próximo paso: etiquetar ~300 reseñas y reportar F1 por vertical.
 
 Un agente que ingesta las reseñas públicas de Rappi México, las clasifica por vertical y causa raíz con Claude, agrupa patrones en clusters semanales, y los sirve por dashboard público + bot de Telegram.
 

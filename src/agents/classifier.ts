@@ -35,8 +35,12 @@ Reglas:
 - Si la reseña es positiva, pain_point="other" y sentiment>=4
 - Si menciona repartidor o entrega tardía → courier/late_delivery
 - Si menciona producto incorrecto o faltante → grocery/food/pharmacy según contexto + missing_item/wrong_item
-- Si menciona app no carga, errores, crashes → app/app_bug
+- Si menciona que la app no carga, errores, crashes, UI, login, búsqueda → app/app_bug
 - Si menciona tarjeta, pago fallido → rappipay/payment_failure
+- Usa vertical="app" SOLO cuando la queja principal es la aplicación móvil en sí
+  (crashes, UI, cuenta, búsqueda, login). Si el texto menciona "la app" pero la queja
+  real es entrega tardía / producto faltante / soporte / cobro → asigna el vertical
+  correspondiente (courier/food/grocery/rappipay), NO "app"
 - Español correcto con acentos (á, é, í, ó, ú, ñ)
 - NUNCA inventes detalles que no están en el texto`;
 
@@ -57,25 +61,69 @@ export async function runClassifier(): Promise<{ processed: number; skipped: num
   const supabase = serverClient();
   const claude = anthropic();
 
-  // Pull reviews that haven't been classified yet
-  const { data: pending, error } = await supabase
-    .from("raw_reviews")
-    .select("id, text")
-    .not("id", "in", `(select review_id from classified_reviews)`)
-    .limit(MAX_REVIEWS_PER_RUN);
+  // Fetch already-classified UUIDs so we can skip duplicates from parallel scrapers
+  // (same review can arrive with different id prefixes: gp:, gpe:, gpx:).
+  const { data: existingClassified, error: cErr } = await supabase
+    .from("classified_reviews")
+    .select("review_id");
+  if (cErr) throw new Error(`[classifier] fetch classified failed: ${cErr.message}`);
+  const uuidOf = (id: string) => id.split(":")[1] ?? id;
+  const classifiedUuids = new Set((existingClassified ?? []).map((c) => uuidOf(c.review_id)));
 
-  if (error) throw new Error(`[classifier] fetch failed: ${error.message}`);
-  if (!pending || pending.length === 0) {
+  // Pull reviews that haven't been classified yet. PostgREST caps rows at 1000
+  // per request, so page through explicitly.
+  const pendingAll: Array<{ id: string; text: string }> = [];
+  for (let page = 0; page < 20; page++) {
+    const { data, error: pErr } = await supabase
+      .from("raw_reviews")
+      .select("id, text")
+      .not("id", "in", `(select review_id from classified_reviews)`)
+      .range(page * 1000, page * 1000 + 999);
+    if (pErr) throw new Error(`[classifier] fetch page ${page} failed: ${pErr.message}`);
+    if (!data || data.length === 0) break;
+    pendingAll.push(...data);
+    if (data.length < 1000) break;
+  }
+  const pending = pendingAll.slice(0, MAX_REVIEWS_PER_RUN);
+
+  if (pending.length === 0) {
     console.log("[classifier] nothing to classify");
     return { processed: 0, skipped: 0 };
   }
 
-  console.log(`[classifier] ${pending.length} reviews pending`);
+  // Dedup by UUID: prefer gp: > gpe: > gpx: (current scraper first). Also drop any
+  // pending row whose UUID has already been classified under a different prefix.
+  const prefixRank: Record<string, number> = { gp: 0, gpe: 1, gpx: 2 };
+  const sorted = (pending as ClassifyItem[]).slice().sort((a, b) => {
+    const ra = prefixRank[a.id.split(":")[0]] ?? 9;
+    const rb = prefixRank[b.id.split(":")[0]] ?? 9;
+    return ra - rb;
+  });
+  const pickedByUuid = new Map<string, ClassifyItem>();
+  let droppedAlreadyClassified = 0;
+  let droppedInBatch = 0;
+  for (const row of sorted) {
+    const uuid = uuidOf(row.id);
+    if (classifiedUuids.has(uuid)) {
+      droppedAlreadyClassified++;
+      continue;
+    }
+    if (pickedByUuid.has(uuid)) {
+      droppedInBatch++;
+      continue;
+    }
+    pickedByUuid.set(uuid, row);
+  }
+  const deduped = Array.from(pickedByUuid.values());
+  console.log(
+    `[classifier] ${pending.length} pending → ${deduped.length} after dedup ` +
+      `(dropped ${droppedAlreadyClassified} already-classified UUIDs, ${droppedInBatch} in-batch dupes)`,
+  );
 
   let processed = 0;
   let skipped = 0;
-  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
-    const batch = pending.slice(i, i + BATCH_SIZE) as ClassifyItem[];
+  for (let i = 0; i < deduped.length; i += BATCH_SIZE) {
+    const batch = deduped.slice(i, i + BATCH_SIZE);
     try {
       const results = await classifyBatch(claude, batch);
       const rows: ClassifiedReview[] = results.map((r) => ({
@@ -86,15 +134,21 @@ export async function runClassifier(): Promise<{ processed: number; skipped: num
         summary_es: r.summary_es,
         classified_at: new Date().toISOString(),
       }));
+      // Only upsert rows whose review_id actually matches a pending id (guard against
+      // hallucinated ids that would FK-violate).
+      const pendingIds = new Set(batch.map((b) => b.id));
+      const safeRows = rows.filter((r) => pendingIds.has(r.review_id));
       const { error: upsertErr } = await supabase
         .from("classified_reviews")
-        .upsert(rows, { onConflict: "review_id" });
+        .upsert(safeRows, { onConflict: "review_id" });
       if (upsertErr) throw new Error(upsertErr.message);
-      processed += rows.length;
-      console.log(`[classifier] batch ${i / BATCH_SIZE + 1}: +${rows.length}`);
+      processed += safeRows.length;
+      const dropped = rows.length - safeRows.length;
+      console.log(`[classifier] batch ${i / BATCH_SIZE + 1}: +${safeRows.length}${dropped ? ` (dropped ${dropped} unmatched ids)` : ""}`);
     } catch (err) {
       skipped += batch.length;
-      console.error(`[classifier] batch ${i / BATCH_SIZE + 1} failed:`, err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[classifier] batch ${i / BATCH_SIZE + 1} failed: ${msg.slice(0, 200)}`);
     }
   }
 
